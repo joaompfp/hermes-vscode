@@ -1,0 +1,117 @@
+{
+  "name": "hermes-ai-agent",
+  "displayName": "Hermes AI Agent",
+  "description": "AI agent sidebar for VS Code. Streams chat, runs tools, manages sessions, and tracks context via ACP.",
+  "version": "1.0.3",
+  "publisher": "joaompfp",
+  "author": "joao",
+  "license": "MIT",
+  "keywords": [
+    "ai",
+    "agent",
+    "hermes",
+    "chat",
+    "acp",
+    "tool use",
+    "sidebar",
+    "llm",
+    "streaming"
+  ],
+  "homepage": "https://github.com/joaompfp/hermes-vscode",
+  "bugs": {
+    "url": "https://github.com/joaompfp/hermes-vscode/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/joaompfp/hermes-vscode"
+  },
+  "icon": "resources/hermes-logo-128.png",
+  "galleryBanner": {
+    "color": "#1f1f1f",
+    "theme": "dark"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "extensionKind": [
+    "workspace"
+  ],
+  "categories": [
+    "AI",
+    "Chat",
+    "Programming Languages",
+    "Other"
+  ],
+  "activationEvents": [
+    "onView:hermes.chatView",
+    "onCommand:hermes.openChat",
+    "onCommand:hermes.newSession"
+  ],
+  "main": "./dist/extension.js",
+  "qna": "https://github.com/joaompfp/hermes-vscode/issues",
+  "contributes": {
+    "commands": [
+      {
+        "command": "hermes.openChat",
+        "title": "Hermes: Open Chat"
+      },
+      {
+        "command": "hermes.newSession",
+        "title": "Hermes: New Session"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "hermes",
+          "title": "Hermes Agent",
+          "icon": "resources/hermes-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "hermes": [
+        {
+          "type": "webview",
+          "id": "hermes.chatView",
+          "name": "Chat"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Hermes",
+      "properties": {
+        "hermes.path": {
+          "type": "string",
+          "default": "hermes",
+          "description": "Path to the Hermes binary."
+        },
+        "hermes.debugLogs": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable verbose ACP debug logs in the Hermes output channel."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "webpack --mode production",
+    "dev": "webpack --mode development --watch",
+    "package": "vsce package --no-dependencies"
+  },
+  "devDependencies": {
+    "@types/dompurify": "^3.0.5",
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^2.22.0",
+    "ts-loader": "^9.5.0",
+    "typescript": "^5.3.0",
+    "webpack": "^5.89.0",
+    "webpack-cli": "^5.1.4"
+  },
+  "dependencies": {
+    "dompurify": "^3.3.3",
+    "marked": "^17.0.5"
+  }
+}

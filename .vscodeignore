@@ -1,0 +1,19 @@
+# Exclude everything, then whitelist
+**
+
+# Runtime
+!dist/**
+!package.json
+!README.md
+!LICENSE
+!LICENSE.txt
+!CHANGELOG.md
+
+# Assets
+!resources/hermes-logo.png
+!resources/hermes-logo-128.png
+!resources/hermes-icon.svg
+
+# Exclude internal docs
+CLAUDE.md
+CODEX-HANDOFF.md
