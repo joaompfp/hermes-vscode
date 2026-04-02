@@ -263,11 +263,21 @@ function updateStatusBar(model?: string, sessionTitle?: string, contextUsed?: nu
   if (version !== undefined) statusVersionEl.textContent = version ? ` ${version}` : '';
   if (model) {
     currentModel = model;
-    modelBtn.textContent = `${model} ▾`;
-    modelBtnHeader.textContent = `${model} ▾`;
+    // Find the display label from the menu (match by command or model ID suffix)
+    let displayLabel = model;
     modelMenu.querySelectorAll<HTMLElement>('.model-option').forEach(el => {
-      el.classList.toggle('active', el.dataset.command === model || el.dataset.command?.endsWith(':' + model));
+      const cmd = el.dataset.command ?? '';
+      const isMatch = cmd === model || cmd.endsWith(':' + model);
+      el.classList.toggle('active', isMatch);
+      if (isMatch) {
+        // Extract just the label text (before any suffix spans)
+        const clone = el.cloneNode(true) as HTMLElement;
+        clone.querySelectorAll('span').forEach(s => s.remove());
+        displayLabel = clone.textContent?.trim() || model;
+      }
     });
+    modelBtn.textContent = `${displayLabel} ▾`;
+    modelBtnHeader.textContent = `${displayLabel} ▾`;
   }
   if (sessionTitle) statusSessionEl.textContent = sessionTitle;
   if (contextSize && contextSize > 0) knownContextSize = contextSize;

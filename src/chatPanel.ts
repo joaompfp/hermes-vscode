@@ -630,6 +630,16 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
     });
   }
 
+  /** Get the friendly label for the initial model (e.g., "Claude Sonnet 4.6" not "claude-sonnet-4-6"). */
+  private initialModelLabel(): string {
+    for (const g of this.modelGroups) {
+      for (const m of g.items) {
+        if (m.id === this.initialModel || m.command === this.initialModel) return m.label;
+      }
+    }
+    return this.initialModel;
+  }
+
   private buildModelMenuItems(): string {
     const allItems = this.modelGroups.flatMap(g => g.items);
     const currentInList = allItems.find(m => m.id === this.initialModel || m.command === this.initialModel);
@@ -1226,7 +1236,7 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
       <span class="brand-text">Hermes</span>
       <span class="brand-version" id="status-version"></span>
       <span class="brand-sep">·</span>
-      <button id="model-btn-header" title="Switch model">${this.initialModel} ▾</button>
+      <button id="model-btn-header" title="Switch model">${this.initialModelLabel()} ▾</button>
     </div>
     <div id="header-session">
       <button id="status-session" title="Sessions">new session</button>
