@@ -178,11 +178,12 @@ overflowMenu.addEventListener('click', (e) => {
   closeFn(); vscode.postMessage({ type: 'send', text: item.dataset.cmd });
 });
 
-// Empty state prompt chips
+// Empty state prompt chips — send immediately on click
 emptyState?.addEventListener('click', (e) => {
   const chip = (e.target as HTMLElement).closest<HTMLElement>('.prompt-chip');
   if (!chip?.dataset.prompt) return;
-  inputEl.value = chip.dataset.prompt; inputEl.focus();
+  inputEl.value = chip.dataset.prompt;
+  send();
 });
 
 // File attachment

@@ -174,6 +174,11 @@ const CSS_TEMPLATE = /* css */ `
       --gold-subtle: rgba(245, 197, 66, 0.12);
       --gold-border: rgba(245, 197, 66, 0.25);
       --toolbar-height: 28px;
+      --space-xs: 2px;
+      --space-sm: 4px;
+      --space-md: 8px;
+      --space-lg: 12px;
+      --space-xl: 16px;
     }
 
     body {
@@ -295,10 +300,10 @@ const CSS_TEMPLATE = /* css */ `
       flex: 1;
       min-height: 80px;
       overflow-y: auto;
-      padding: 10px 10px;
+      padding: var(--space-lg) var(--space-md);
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: var(--space-lg);
     }
 
     .msg {
@@ -362,10 +367,10 @@ const CSS_TEMPLATE = /* css */ `
       min-height: 22px;
       clear: both;
     }
-    .msg.tool + .msg.tool { margin-top: -6px; }
-    .msg.agent + .msg.tool { margin-top: -4px; }
-    .msg.tool + .msg.agent { margin-top: 0; }
-    .thinking-status + .msg.tool { margin-top: -4px; }
+    .msg.tool + .msg.tool { margin-top: calc(-1 * var(--space-md)); }
+    .msg.agent + .msg.tool { margin-top: var(--space-xs); }
+    .msg.tool + .msg.agent { margin-top: var(--space-md); }
+    .thinking-status + .msg.tool { margin-top: var(--space-xs); }
 
     .msg.tool .tool-status {
       color: var(--gold); flex-shrink: 0; width: 1.2em; text-align: center;

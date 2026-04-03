@@ -5,7 +5,7 @@
 import DOMPurify from 'dompurify';
 import type { FromWebview } from '../types';
 import type { WebviewState } from './state';
-import { fmtAge } from './renderers';
+import { fmtAge, fmtTok } from './renderers';
 
 type Vscode = { postMessage(msg: FromWebview): void };
 
@@ -149,7 +149,6 @@ export function updateStatusBar(
   if (contextSize && contextSize > 0) state.knownContextSize = contextSize;
   if (contextUsed !== undefined) {
     const size = state.knownContextSize;
-    const { fmtTok } = require('./renderers');
     if (size > 0) {
       const pct = Math.min(1, contextUsed / size);
       const cls = pct > 0.9 ? 'crit' : pct > 0.7 ? 'warn' : '';
