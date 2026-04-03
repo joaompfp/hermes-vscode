@@ -25,30 +25,14 @@
  */
 
 import { AcpClient } from './acpClient';
+import type { SessionUpdateEvent, SessionUpdateHandler } from './types';
+import {
+  extractTextContent, deduplicateChunk,
+  parseToolCall, parseToolCallUpdate,
+  parseUsageUpdate, parseSessionInfoUpdate,
+} from './protocol';
 
 export type PermissionRequestHandler = (method: string, params: unknown) => Promise<unknown>;
-
-export interface SessionUpdateEvent {
-  session_id: string;
-  text?: string;
-  thinkingText?: string;
-  toolTitle?: string;
-  toolStatus?: string;
-  toolCallId?: string;
-  toolDetail?: string;   // key argument summary (e.g., file path, command)
-  toolKind?: string;     // read, edit, execute, search, fetch, think, other
-  toolLocations?: string[]; // affected file paths
-  todoState?: unknown;   // parsed todo JSON from todo tool output
-  done?: boolean;
-  error?: string;
-  // Status bar live data
-  model?: string;
-  sessionTitle?: string;
-  contextUsed?: number;
-  contextSize?: number;
-}
-
-export type SessionUpdateHandler = (event: SessionUpdateEvent) => void;
 
 export class SessionManager {
   private sessionId: string | null = null;
@@ -214,130 +198,69 @@ export class SessionManager {
     switch (kind) {
       case 'agent_message_chunk': {
         if (this.cancelled) return;
-        const content = update.content as Record<string, unknown> | undefined;
-        if (content?.type !== 'text' || typeof content.text !== 'string') return;
-
-        const text = content.text as string;
-
-        // Deduplication: Hermes resends text as a reliability fallback.
-        // Three patterns:
-        //   1. Exact full resend: text === accumulated
-        //   2. Superset resend: text starts with accumulated (new tail only)
-        //   3. Partial resend: accumulated ends with text (last paragraph repeated)
-        if (text === this.accumulated) return;
-
-        if (text.length > 10 && text.startsWith(this.accumulated)) {
-          const newPart = text.slice(this.accumulated.length);
-          if (!newPart) return;
-          this.accumulated = text;
-          event.text = newPart;
-          break;
-        }
-
-        if (text.length > 10 && this.accumulated.endsWith(text)) {
-          this.log(`[session] dedup: dropped partial resend (${text.length} chars)`);
+        const text = extractTextContent(update);
+        if (text === null) return;
+        const result = deduplicateChunk(text, this.accumulated);
+        if (result.action === 'drop') {
+          if (this.accumulated.endsWith(text)) {
+            this.log(`[session] dedup: dropped partial resend (${text.length} chars)`);
+          }
           return;
         }
-
-        this.accumulated += text;
-        event.text = text;
+        this.accumulated = result.newAccumulated;
+        event.text = result.text;
         break;
       }
 
       case 'agent_thought_chunk': {
         if (this.cancelled) return;
-        const content = update.content as Record<string, unknown> | undefined;
-        if (content?.type !== 'text' || typeof content.text !== 'string') return;
-        const t = content.text as string;
-        if (t.trim()) event.thinkingText = t;
+        const text = extractTextContent(update);
+        if (text?.trim()) event.thinkingText = text;
+        else return;
         break;
       }
 
       case 'tool_call': {
         if (this.cancelled) return;
-        event.toolTitle = (update.title as string) ?? 'tool';
-        event.toolStatus = (update.status as string) ?? 'running';
-        event.toolCallId = update.toolCallId as string | undefined;
-        event.toolKind = (update.kind as string) ?? 'other';
-
-        // Extract file paths from locations
-        const locations = update.locations as { path?: string }[] | undefined;
-        if (locations?.length) {
-          event.toolLocations = locations.map(l => l.path).filter((p): p is string => !!p);
-        }
-
-        // Extract a short detail from rawInput (first string value)
-        const rawInput = update.rawInput as Record<string, unknown> | undefined;
-        if (rawInput) {
-          // Todo tool: rawInput IS the todo state ({todos: [...]})
-          if (event.toolTitle === 'todo' && Array.isArray(rawInput.todos)) {
-            event.todoState = rawInput;
-            this.log(`[session] todo tool_call: ${(rawInput.todos as unknown[]).length} items`);
-          } else {
-            const firstVal = Object.values(rawInput).find(v => typeof v === 'string') as string | undefined;
-            if (firstVal) event.toolDetail = firstVal.length > 80 ? firstVal.slice(0, 77) + '…' : firstVal;
-          }
+        const parsed = parseToolCall(update);
+        event.toolTitle = parsed.title;
+        event.toolStatus = parsed.status;
+        event.toolCallId = parsed.toolCallId;
+        event.toolKind = parsed.kind;
+        if (parsed.locations.length) event.toolLocations = parsed.locations;
+        if (parsed.detail) event.toolDetail = parsed.detail;
+        if (parsed.todoState) {
+          event.todoState = parsed.todoState;
+          this.log(`[session] todo tool_call: ${parsed.todoState.todos.length} items`);
         }
         break;
       }
 
       case 'tool_call_update': {
         if (this.cancelled) return;
-        event.toolCallId = update.toolCallId as string | undefined;
-        event.toolStatus = (update.status as string) ?? 'completed';
-        event.toolTitle = ''; // signal that this is an update, not a new call
-
-        // Detect todo tool output in raw_output or content
-        const rawOutput = update.rawOutput ?? (update as Record<string, unknown>).raw_output;
-        if (typeof rawOutput === 'string' && rawOutput.includes('"todos"')) {
-          try {
-            const parsed = JSON.parse(rawOutput);
-            if (Array.isArray(parsed?.todos)) {
-              event.todoState = parsed;
-              this.log(`[session] todo update: ${parsed.todos.length} items`);
-            }
-          } catch { /* not todo JSON */ }
-        }
-        // Also check content blocks for todo JSON
-        const contentBlocks = update.content as { content?: { text?: string } }[] | undefined;
-        if (!event.todoState && Array.isArray(contentBlocks)) {
-          for (const block of contentBlocks) {
-            const text = block?.content?.text;
-            if (typeof text === 'string' && text.includes('"todos"')) {
-              try {
-                const parsed = JSON.parse(text);
-                if (Array.isArray(parsed?.todos)) {
-                  event.todoState = parsed;
-                  this.log(`[session] todo update from content: ${parsed.todos.length} items`);
-                  break;
-                }
-              } catch { /* not todo JSON */ }
-            }
-          }
+        const parsed = parseToolCallUpdate(update);
+        event.toolCallId = parsed.toolCallId;
+        event.toolStatus = parsed.status;
+        event.toolTitle = ''; // signal: update, not new call
+        if (parsed.todoState) {
+          event.todoState = parsed.todoState;
+          this.log(`[session] todo update: ${parsed.todoState.todos.length} items`);
         }
         break;
       }
 
       case 'usage_update': {
-        // Context window usage — size and used are in tokens
-        const size = update.size as number | undefined;
-        const used = update.used as number | undefined;
-        if (typeof size === 'number' && typeof used === 'number') {
-          event.contextUsed = used;
-          event.contextSize = size;
-        } else {
-          return;
-        }
+        const usage = parseUsageUpdate(update);
+        if (!usage) return;
+        event.contextUsed = usage.contextUsed;
+        event.contextSize = usage.contextSize;
         break;
       }
 
       case 'session_info_update': {
-        const title = update.title as string | undefined;
-        if (title) {
-          event.sessionTitle = title;
-        } else {
-          return;
-        }
+        const title = parseSessionInfoUpdate(update);
+        if (!title) return;
+        event.sessionTitle = title;
         break;
       }
 

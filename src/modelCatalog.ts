@@ -39,13 +39,12 @@ const ANTHROPIC_MODEL_IDS = [
   'claude-haiku-4-5-20251001',
 ];
 
-// Only models with unambiguous Codex-specific names.
-// Bare names like 'gpt-5.4' and 'gpt-5.2' also exist on OpenRouter
-// and cause Hermes to route through OpenRouter instead of Codex OAuth.
 const OPENAI_CODEX_MODEL_IDS = [
   'gpt-5.4-mini',
+  'gpt-5.4',
   'gpt-5.3-codex',
   'gpt-5.2-codex',
+  'gpt-5.2',
   'gpt-5.1-codex-max',
   'gpt-5.1-codex-mini',
   'gpt-5.3-codex-spark',
@@ -62,8 +61,10 @@ const FALLBACK_LABELS: Record<string, string> = {
   'claude-3-haiku-20240307': 'Claude 3 Haiku',
   'claude-haiku-4-5-20251001': 'Claude Haiku 4.5',
   'gpt-5.4-mini': 'GPT-5.4 mini',
+  'gpt-5.4': 'GPT-5.4',
   'gpt-5.3-codex': 'GPT-5.3 Codex',
   'gpt-5.2-codex': 'GPT-5.2 Codex',
+  'gpt-5.2': 'GPT-5.2',
   'gpt-5.1-codex-max': 'GPT-5.1 Codex Max',
   'gpt-5.1-codex-mini': 'GPT-5.1 Codex mini',
   'gpt-5.3-codex-spark': 'GPT-5.3 Codex Spark',
