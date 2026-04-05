@@ -94,12 +94,31 @@ export class SessionManager {
       return this.sessionId;
     }
 
-    // Try to resume a stored session first (Hermes persists sessions in SQLite)
+    // Try to resume a stored session first.
+    // Critical: we MUST call session/load so the adapter registers our session ID
+    // in its in-memory map. Just assuming the ID is live (previous bug) creates a
+    // phantom session that silently fails on subsequent session/prompt calls.
     if (this.storedSessionId) {
-      this.log(`[session] attempting resume of ${this.storedSessionId}`);
-      this.sessionId = this.storedSessionId;
+      const storedId = this.storedSessionId;
       this.storedSessionId = null;
-      return this.sessionId;
+      try {
+        this.log(`[session] attempting session/load ${storedId}`);
+        const result = await this.client.call('session/load', {
+          sessionId: storedId,
+          cwd,
+          mcpServers: [],
+        });
+        // Adapter returns null when session not found — load_session() → None
+        if (result !== null && result !== undefined) {
+          this.sessionId = storedId;
+          this.log(`[session] resumed ${storedId}`);
+          return this.sessionId;
+        }
+        this.log(`[session] stored session ${storedId} not found on adapter, creating new`);
+      } catch (err) {
+        this.log(`[session] session/load failed (${err}), creating new`);
+      }
+      // Fall through to session/new
     }
 
     this.log(`[session] creating new session for cwd=${cwd}`);

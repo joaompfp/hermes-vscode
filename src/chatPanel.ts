@@ -199,6 +199,20 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
           this.broadcastSessions(this.store);
         }
         this.store.addUserMessage(msg.text);
+      } else {
+        // Slash command — detect /title X and sync extension's local title
+        // The adapter processes the command and updates its own state; we mirror it locally.
+        const titleMatch = /^\/title\s+(.+?)\s*$/i.exec(msg.text);
+        if (titleMatch) {
+          const newTitle = titleMatch[1].trim();
+          const activeId = this.store.activeId;
+          if (activeId && newTitle) {
+            this.store.rename(activeId, newTitle);
+            this.post({ type: 'statusBar', sessionTitle: newTitle.slice(0, 60) });
+            this.broadcastSessions(this.store);
+            this.log(`[ui] /title synced locally: ${newTitle}`);
+          }
+        }
       }
 
       // Build context annotation — 1 item per line
