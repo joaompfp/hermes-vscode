@@ -160,6 +160,7 @@ export class ChatPanelProvider implements vscode.WebviewViewProvider {
           sessionTitle: event.sessionTitle,
           contextUsed: event.contextUsed,
           contextSize: event.contextSize,
+          cachedTokens: event.cachedTokens,
         });
       }
     });

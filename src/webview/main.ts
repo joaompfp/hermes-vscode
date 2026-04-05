@@ -41,6 +41,7 @@ const statusContextEl  = document.getElementById('status-context')!;
 const statusVersionEl  = document.getElementById('status-version')!;
 const ctxBarWrap       = document.getElementById('ctx-bar-wrap') as HTMLDivElement;
 const ctxBar           = document.getElementById('ctx-bar') as HTMLDivElement;
+const ctxBarFresh      = document.getElementById('ctx-bar-fresh') as HTMLDivElement;
 const modelBtn         = document.getElementById('model-btn') as HTMLButtonElement;
 const modelBtnHeader   = document.getElementById('model-btn-header') as HTMLButtonElement;
 const modelMenu        = document.getElementById('model-menu') as HTMLDivElement;
@@ -54,7 +55,7 @@ const skillsBtn        = document.getElementById('skills-btn') as HTMLButtonElem
 const skillsMenu       = document.getElementById('skills-menu') as HTMLDivElement;
 
 const dropdownEls = { modelMenu, sessionPicker, skillsMenu, overflowMenu };
-const statusEls = { statusVersionEl, modelBtn, modelBtnHeader, modelMenu, statusSessionEl, statusContextEl, ctxBarWrap, ctxBar };
+const statusEls = { statusVersionEl, modelBtn, modelBtnHeader, modelMenu, statusSessionEl, statusContextEl, ctxBarWrap, ctxBar, ctxBarFresh };
 const closeFn = () => closeAllDropdowns(dropdownEls);
 
 // ── Helpers ──────────────────────────────────────────
@@ -387,7 +388,7 @@ window.addEventListener('message', (e: MessageEvent) => {
       break;
 
     case 'statusBar': {
-      updateStatusBar(S, statusEls, msg.model, msg.sessionTitle, msg.contextUsed, msg.contextSize, msg.version);
+      updateStatusBar(S, statusEls, msg.model, msg.sessionTitle, msg.contextUsed, msg.contextSize, msg.version, msg.cachedTokens);
       if (msg.skillGroups && msg.skillGroups.length > 0) S.skillGroupsData = msg.skillGroups;
       if (msg.selectedSkills !== undefined) {
         S.selectedSkillNames = new Set(msg.selectedSkills);

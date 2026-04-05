@@ -59,6 +59,7 @@ export interface SessionUpdateEvent {
   sessionTitle?: string;
   contextUsed?: number;
   contextSize?: number;
+  cachedTokens?: number;
 }
 
 export type SessionUpdateHandler = (event: SessionUpdateEvent) => void;
@@ -85,6 +86,7 @@ export interface ToWebview {
   sessionTitle?: string;
   contextUsed?: number;
   contextSize?: number;
+  cachedTokens?: number;
   version?: string;
   sessions?: ChatSession[];
   activeSessionId?: string;

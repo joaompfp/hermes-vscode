@@ -149,20 +149,21 @@ export class SessionManager {
     });
 
     // Extract current context usage from PromptResponse.
-    // usage.inputTokens = last_prompt_tokens (current window usage, not cumulative).
+    // usage.inputTokens = last_prompt_tokens (total sent to API including cached).
+    // usage.cachedReadTokens = portion served from Anthropic prompt cache (90% cheaper).
     // _meta.contextLength = model context window size (for progress bar).
     const usage = promptResponse.usage as Record<string, unknown> | undefined;
     const meta = promptResponse['_meta'] as Record<string, unknown> | undefined;
-    const contextUsed: number | undefined = (
-      typeof usage?.inputTokens === 'number' && usage.inputTokens > 0 ? usage.inputTokens as number :
-      undefined
-    );
+    const inputTokens = typeof usage?.inputTokens === 'number' ? usage.inputTokens as number : 0;
+    const cachedTokens = typeof usage?.cachedReadTokens === 'number' ? usage.cachedReadTokens as number : 0;
+    // contextUsed shows total (matches what the model "sees"), but we also emit cached for the UI.
+    const contextUsed: number | undefined = inputTokens > 0 ? inputTokens : undefined;
     const contextSize: number | undefined = (
       typeof meta?.contextLength === 'number' && meta.contextLength > 0 ? meta.contextLength as number :
       undefined
     );
-    this.log(`[session] prompt done ${sessionId}${contextUsed ? ` used=${contextUsed}` : ''}${contextSize ? ` size=${contextSize}` : ''}`);
-    this.updateHandler?.({ session_id: sessionId, done: true, contextUsed, contextSize });
+    this.log(`[session] prompt done ${sessionId}${contextUsed ? ` used=${contextUsed}` : ''}${cachedTokens ? ` cached=${cachedTokens}` : ''}${contextSize ? ` size=${contextSize}` : ''}`);
+    this.updateHandler?.({ session_id: sessionId, done: true, contextUsed, contextSize, cachedTokens });
   }
 
   async cancel(): Promise<void> {

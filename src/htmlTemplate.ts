@@ -98,7 +98,7 @@ ${CSS_TEMPLATE}
     <div id="header-session">
       <button id="status-session" title="Sessions">new session</button>
       <div id="status-right">
-        <div id="ctx-bar-wrap" style="display:none"><div id="ctx-bar"></div></div>
+        <div id="ctx-bar-wrap" style="display:none"><div id="ctx-bar"></div><div id="ctx-bar-fresh"></div></div>
         <span id="status-context"></span>
       </div>
     </div>
@@ -248,20 +248,32 @@ const CSS_TEMPLATE = /* css */ `
     #status-context.warn { color: var(--gold); opacity: 1; }
     #status-context.crit { color: #C94040; opacity: 1; }
 
-    /* Token progress bar */
+    /* Token progress bar — dual layer: total (faded) + fresh (solid) */
     #ctx-bar-wrap {
       width: 52px; height: 5px;
       background: rgba(255,255,255,0.1);
       border-radius: 2px; overflow: hidden; flex-shrink: 0;
+      position: relative;
     }
+    /* Total usage (cached + fresh) — faded background fill */
     #ctx-bar {
+      position: absolute; top: 0; left: 0;
+      height: 100%; width: 0%;
+      border-radius: 2px;
+      background: var(--gold);
+      opacity: 0.3;
+      transition: width 0.4s ease, background 0.3s;
+    }
+    /* Fresh (non-cached) usage — solid foreground fill */
+    #ctx-bar-fresh {
+      position: absolute; top: 0; left: 0;
       height: 100%; width: 0%;
       border-radius: 2px;
       background: var(--gold);
       transition: width 0.4s ease, background 0.3s;
     }
-    #ctx-bar.warn { background: var(--gold); }
-    #ctx-bar.crit { background: #C94040; }
+    #ctx-bar.warn, #ctx-bar-fresh.warn { background: var(--gold); }
+    #ctx-bar.crit, #ctx-bar-fresh.crit { background: #C94040; }
 
     /* ── Dropdowns ──────────────────────────────────── */
     .status-dropdown {

@@ -2,7 +2,7 @@
   "name": "hermes-ai-agent",
   "displayName": "Hermes AI Agent",
   "description": "AI agent sidebar for VS Code. Streams chat, runs tools, manages sessions, and tracks context via ACP.",
-  "version": "3.0.0-rc.1",
+  "version": "3.0.0-rc.2",
   "publisher": "joaompfp",
   "author": "joao",
   "license": "MIT",

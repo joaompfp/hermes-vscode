@@ -123,10 +123,11 @@ export function updateStatusBar(
   els: {
     statusVersionEl: HTMLElement; modelBtn: HTMLElement; modelBtnHeader: HTMLElement;
     modelMenu: HTMLElement; statusSessionEl: HTMLElement; statusContextEl: HTMLElement;
-    ctxBarWrap: HTMLElement; ctxBar: HTMLElement;
+    ctxBarWrap: HTMLElement; ctxBar: HTMLElement; ctxBarFresh: HTMLElement;
   },
   model?: string, sessionTitle?: string,
   contextUsed?: number, contextSize?: number, version?: string,
+  cachedTokens?: number,
 ): void {
   if (version !== undefined) els.statusVersionEl.textContent = version ? ` ${version}` : '';
   if (model) {
@@ -150,12 +151,24 @@ export function updateStatusBar(
   if (contextUsed !== undefined) {
     const size = state.knownContextSize;
     if (size > 0) {
-      const pct = Math.min(1, contextUsed / size);
-      const cls = pct > 0.9 ? 'crit' : pct > 0.7 ? 'warn' : '';
-      els.statusContextEl.innerHTML = `<span style="color:var(--gold);font-weight:600">${fmtTok(contextUsed)}</span> / ${fmtTok(size)}`;
+      const freshTokens = Math.max(0, contextUsed - (cachedTokens ?? 0));
+      const totalPct = Math.min(1, contextUsed / size);
+      const freshPct = Math.min(1, freshTokens / size);
+      const cls = totalPct > 0.9 ? 'crit' : totalPct > 0.7 ? 'warn' : '';
+
+      // Text: prominently show fresh, total in parens when there's cached content
+      const cachedLabel = cachedTokens && cachedTokens > 0
+        ? ` <span style="opacity:0.5">(+${fmtTok(cachedTokens)})</span>`
+        : '';
+      els.statusContextEl.innerHTML =
+        `<span style="color:var(--gold);font-weight:600">${fmtTok(freshTokens)}</span>${cachedLabel} / ${fmtTok(size)}`;
       els.statusContextEl.className = cls;
-      els.ctxBar.style.width = `${(pct * 100).toFixed(1)}%`;
+
+      // Dual bar: faded background = total, solid foreground = fresh
+      els.ctxBar.style.width = `${(totalPct * 100).toFixed(1)}%`;
       els.ctxBar.className = cls;
+      els.ctxBarFresh.style.width = `${(freshPct * 100).toFixed(1)}%`;
+      els.ctxBarFresh.className = cls;
       els.ctxBarWrap.style.display = 'block';
     } else {
       els.statusContextEl.textContent = `${fmtTok(contextUsed)} tok`;
