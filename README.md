@@ -1,114 +1,116 @@
-# Hermes — AI Coding Agent for VS Code
+# Hermes AI Agent — VS Code Extension
 
-Hermes is an AI coding agent that runs directly in your VS Code sidebar. It streams responses in real time, executes tools, manages sessions, and tracks live context usage through the [Hermes CLI](https://github.com/collinear-ai/hermes-agent) over the Agent Client Protocol (ACP).
+VS Code sidebar for the [Hermes CLI](https://github.com/collinear-ai/hermes-agent) agent runtime. Streams chat, executes tools, manages sessions, and tracks context usage over the Agent Client Protocol (ACP).
+
+Requires Hermes CLI installed and authenticated. The extension spawns `hermes acp` as a local subprocess — no cloud proxy, no hosted backend.
 
 ## Features
 
-### Chat & Streaming
-- **Sidebar chat panel** — Hermes lives in the VS Code activity bar with a custom winged sandal icon
-- **Streaming markdown** — responses render live with debounced markdown formatting and DOMPurify sanitization
-- **Thinking display** — extended reasoning shown as gold italic status line
-- **Inline images** — cached Hermes media renders directly in chat without exposing arbitrary local paths
-- **Copy buttons** — hover any code block to copy its contents
+### Chat
+- Sidebar panel with streaming markdown rendering (DOMPurify-sanitized)
+- Extended thinking shown as gold status line
+- Inline image rendering from Hermes `MEDIA:/path` protocol
+- Copy buttons on code blocks
 
-### Tools & Skills
-- **Claude Code-style tool display** — tool calls show with bold kind labels (Read, Edit, Bash, Search, Fetch) and file paths from ACP locations
-- **Status icons** — `✓` green (done), `⋯` gold (running), `✗` red (error)
-- **Live file integration** — edited files auto-open in VS Code editor; read files open as preview tabs
-- **Skills picker** — `✦` button dynamically loads 100+ skills from `~/.hermes/skills/`, grouped alphabetically
-- **Todo progress overlay** — persistent checklist appears when Hermes uses its todo tool
+### Tool Use
+- Tool calls displayed with kind labels (Read, Edit, Bash, Search, Fetch) and file paths
+- Status: `✓` done, `⋯` running, `✗` error
+- Edited files auto-open in VS Code; reads open as preview tabs
+- Todo overlay from Hermes's todo tool
+
+### Skills
+- Skills picker (`✦` button) loads from `~/.hermes/skills/`
+- Multi-select — injected as advisory prefix in the prompt
+
+### Slash Commands
+Grouped command menu (`/` button). Three dispatch modes: immediate execute, inline argument prompt, or confirmation dialog.
+
+| Section | Commands |
+|---------|----------|
+| **Session** | `/title`, `/new`, `/retry`, `/compact`, `/save` |
+| **Info** | `/context`, `/usage`, `/tools`, `/help` |
+| **Config** | `/yolo` (auto-approve dangerous ops, red glow), `/reasoning` |
+| **Danger** | `/reset` (with confirmation) |
+
+Slash command responses render as centered system messages, not conversation bubbles.
 
 ### Context & Attachments
-- **IDE context awareness** — active file, selection, and open tabs automatically sent with each message
-- **File attachment** — `⊞` button, drag & drop from explorer, or Ctrl+V to paste images
-- **Multiple attachments** — files accumulate as chips, all cleared after send
-- **Path references** — attached files sent as paths (not content), Hermes reads on demand
+- Active file, selection, and open tabs sent automatically
+- File attachment via `⊕` button, drag & drop, or `Ctrl+V` paste
+- Files sent as path references — Hermes reads on demand
 
 ### Sessions
-- **Persistent sessions** — conversations stored in VS Code workspaceState, survive reloads
-- **Session picker** — click the session name to switch, create, rename (`✎`), or delete (`✕`)
-- **Auto-titled** — first user message becomes the session title
-- **ACP session resume** — stored session IDs allow Hermes to resume context across restarts
-- **Title sync** — renaming sends `/title` to Hermes for persistence in its session DB
+- Persistent across VS Code reloads (stored in `workspaceState`)
+- Session picker: switch, create, rename, delete
+- Auto-titled from first user message
+- ACP session ID stored for context resume
 
-### Model Switching
-- **Multi-provider** — Anthropic Claude + OpenAI Codex models in grouped picker
-- **Provider:model syntax** — seamless provider switching via `/model anthropic:claude-opus-4-6`
-- **Dynamic catalog** — reads from `~/.hermes/models_dev_cache.json` with hard-coded fallbacks
+### Models
+- Anthropic Claude + OpenAI Codex in grouped picker
+- Switch via header dropdown or `/model provider:model-id`
+- Dynamic catalog from `~/.hermes/models_dev_cache.json`
+
+### Token Tracking
+- Context usage displayed as `Xk / 1M` with progress bar
+- Color warnings at 70% (gold) and 90% (red)
 
 ### Queue & Interrupt
-- **Queued prompts** — send follow-ups while Hermes is busy
-- **Interrupt mode** — new messages cancel the current turn (matches Hermes TUI `busy_input_mode: interrupt`)
-- **Visual feedback** — logo pulses gold, input border glows while agent is working
-
-### Status & Tokens
-- **Session name + token counter** fill the top status bar
-- **Gold current tokens** — e.g. **45.2k** / 1M with progress bar
-- **Color warnings** — gold at 70%, red at 90% context usage
-- **Bottom toolbar** — model picker, file/skill attach, slash command buttons
+- Send follow-ups while busy (queued)
+- New messages cancel the current turn
+- Gold glow on composer while agent is working
 
 ## Requirements
 
 - [Hermes CLI](https://github.com/collinear-ai/hermes-agent) installed (`pip install hermes-agent`)
 - Hermes authenticated (`hermes setup`)
-- For Remote SSH: extension runs on the workspace/server side where Hermes is installed
+- VS Code 1.85+
+- Remote SSH: runs on the workspace/server side (`extensionKind: ["workspace"]`)
 
 ## Getting Started
 
-1. Install Hermes: `pip install hermes-agent`
-2. Authenticate: `hermes setup`
-3. Install the `.vsix` file (Extensions → `...` → Install from VSIX)
-4. Open the Hermes panel from the Activity Bar (winged sandal icon)
-5. Start chatting
+1. `pip install hermes-agent && hermes setup`
+2. Install extension from Marketplace or `.vsix`
+3. Open Hermes panel from the activity bar
+4. Send a message
 
-## Extension Settings
+## Settings
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `hermes.path` | `hermes` | Trusted machine-level path to the `hermes` binary (auto-resolves common install paths) |
-| `hermes.debugLogs` | `false` | Enable diagnostic ACP logs in the Hermes Output channel |
-
-## Keyboard Shortcuts
-
-| Key | Action |
-|-----|--------|
-| `Enter` | Send message |
-| `Shift+Enter` | New line in input |
-| `Ctrl+V` | Paste image from clipboard |
-
-## Commands
-
-| Command | Description |
-|---------|-------------|
-| `Hermes: Open Chat` | Focus the Hermes panel and connect |
-| `Hermes: New Session` | Start a fresh agent session |
-
-## Slash Commands
-
-| Command | Button | Description |
-|---------|--------|-------------|
-| `/model [provider:model]` | ⚡ | Switch model and provider |
-| `/context` | ≡ | Show current context usage |
-| `/compact` | ⤓ | Compress conversation context |
-| `/reset` | ↺ | Clear conversation history |
-| `/help` | ? | List all available commands |
+| `hermes.path` | `hermes` | Path to the Hermes binary (machine scope) |
+| `hermes.debugLogs` | `false` | ACP diagnostic logs in the Output channel |
 
 ## Architecture
 
 ```
-Extension Host (Node.js, runs on workspace/server side)
-├── extension.ts      — activation, AcpClient + SessionManager + ChatPanelProvider
-├── acpClient.ts      — JSON-RPC 2.0 over stdio (hermes acp subprocess)
-├── sessionManager.ts — session lifecycle, streaming dedup, tool/todo extraction
-├── chatPanel.ts      — WebviewViewProvider, HTML/CSS, session persistence, file integration
-├── modelCatalog.ts   — dynamic model menu from Hermes cache
-└── skillCatalog.ts   — skill loader from ~/.hermes/skills/
+Extension Host (Node.js)
+├── extension.ts       — activation, wiring
+├── acpClient.ts       — JSON-RPC 2.0 over stdio
+├── sessionManager.ts  — ACP session lifecycle, streaming dedup
+├── sessionStore.ts    — workspaceState persistence
+├── chatPanel.ts       — WebviewViewProvider, message dispatch
+├── htmlTemplate.ts    — HTML/CSS builder
+├── protocol.ts        — typed ACP parsing
+├── types.ts           — shared type definitions
+├── modelCatalog.ts    — model menu loader
+└── skillCatalog.ts    — skill directory loader
 
-Webview (Browser sandbox)
-└── webview/main.ts   — streaming renderer, markdown, session/model/skills UI
+Webview (sandboxed)
+├── main.ts      — event handlers, send logic
+├── state.ts     — state factory
+├── renderers.ts — markdown, messages, todo overlay
+└── menus.ts     — dropdowns, status bar
 ```
 
-The extension spawns `hermes acp` as a subprocess and communicates via **JSON-RPC 2.0 over stdio**. File edits and reads auto-open in VS Code. The webview is sandboxed with CSP and DOMPurify for agent content, cached media is isolated to extension storage, and permission requests are confirmed in VS Code before approval.
+Communication: JSON-RPC 2.0 over stdio to `hermes acp` subprocess. Webview sandboxed with CSP + DOMPurify. Media isolated to extension storage.
+
+## Credits
+
+- [Hermes Agent](https://github.com/collinear-ai/hermes-agent) by [Nous Research](https://nousresearch.com/) — the AI agent runtime this extension connects to
+- [Agent Client Protocol (ACP)](https://agentclientprotocol.com/) — the communication protocol between extension and agent
+- [marked](https://github.com/markedjs/marked) — Markdown parsing for chat rendering
+- [DOMPurify](https://github.com/cure53/DOMPurify) — HTML sanitization for agent-generated content
+- [VS Code Extension API](https://code.visualstudio.com/api) — WebviewViewProvider, workspace state, editor integration
 
 ## License
 

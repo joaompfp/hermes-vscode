@@ -202,6 +202,7 @@ export class SessionManager {
   reset(): void {
     this.log('[session] reset');
     this.sessionId = null;
+    this.storedSessionId = null;
     this.accumulated = '';
   }
 

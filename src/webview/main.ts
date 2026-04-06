@@ -36,13 +36,13 @@ const queueBtn         = document.getElementById('queue-btn') as HTMLButtonEleme
 const queueStatus      = document.getElementById('queue-status') as HTMLDivElement;
 const dragHandle       = document.getElementById('input-drag') as HTMLDivElement;
 const inputRow         = document.getElementById('input-row') as HTMLDivElement;
+const composer         = document.getElementById('composer') as HTMLDivElement;
 const statusSessionEl  = document.getElementById('status-session') as HTMLButtonElement;
 const statusContextEl  = document.getElementById('status-context')!;
 const statusVersionEl  = document.getElementById('status-version')!;
 const ctxBarWrap       = document.getElementById('ctx-bar-wrap') as HTMLDivElement;
 const ctxBar           = document.getElementById('ctx-bar') as HTMLDivElement;
 const ctxBarFresh      = document.getElementById('ctx-bar-fresh') as HTMLDivElement;
-const modelBtn         = document.getElementById('model-btn') as HTMLButtonElement;
 const modelBtnHeader   = document.getElementById('model-btn-header') as HTMLButtonElement;
 const modelMenu        = document.getElementById('model-menu') as HTMLDivElement;
 const overflowBtn      = document.getElementById('overflow-btn') as HTMLButtonElement;
@@ -53,16 +53,19 @@ const logoMark         = document.getElementById('logo-mark')!;
 const todoOverlay      = document.getElementById('todo-overlay')!;
 const skillsBtn        = document.getElementById('skills-btn') as HTMLButtonElement;
 const skillsMenu       = document.getElementById('skills-menu') as HTMLDivElement;
+const cmdArgPopover    = document.getElementById('cmd-arg-popover') as HTMLDivElement;
+const cmdArgInput      = document.getElementById('cmd-arg-input') as HTMLInputElement;
+const cmdArgLabel      = document.getElementById('cmd-arg-label') as HTMLElement;
 
-const dropdownEls = { modelMenu, sessionPicker, skillsMenu, overflowMenu };
-const statusEls = { statusVersionEl, modelBtn, modelBtnHeader, modelMenu, statusSessionEl, statusContextEl, ctxBarWrap, ctxBar, ctxBarFresh };
+const dropdownEls = { modelMenu, sessionPicker, skillsMenu, overflowMenu, cmdArgPopover };
+const statusEls = { statusVersionEl, modelBtnHeader, modelMenu, statusSessionEl, statusContextEl, ctxBarWrap, ctxBar, ctxBarFresh };
 const closeFn = () => closeAllDropdowns(dropdownEls);
 
 // ── Helpers ──────────────────────────────────────────
 function setBusy(active: boolean, queued = 0): void {
   S.isBusy = active;
   logoMark.classList.toggle('busy', active);
-  inputEl.classList.toggle('busy-glow', active);
+  composer.classList.toggle('busy-glow', active);
   sendBtn.style.display = active ? 'none' : 'block';
   busyBtns.style.display = active ? 'flex' : 'none';
   if (queued > 0) {
@@ -80,15 +83,30 @@ function syncComposerHeight(): void {
   inputEl.style.height = `${target}px`;
 }
 
+// Smart scroll — only auto-scroll if the user is near the bottom of the
+// messages pane. If they've scrolled up to read earlier content, don't
+// yank them back down. Threshold: within 80px of the bottom.
+function shouldAutoScroll(): boolean {
+  const el = messagesEl;
+  return el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+}
+function autoScroll(): void {
+  if (shouldAutoScroll()) messagesEl.scrollTo({ top: messagesEl.scrollHeight, behavior: 'smooth' });
+}
+
+// Render markdown on a short interval (200ms). Each flush accumulates text
+// and schedules a render — the timer coalesces bursts of chunks so we don't
+// call marked.parse() on every single token, but still render frequently
+// enough to avoid the "plaintext then jump to formatted" flash.
 function scheduleMarkdownRender(): void {
-  if (S.markdownDebounceTimer) clearTimeout(S.markdownDebounceTimer);
+  if (S.markdownDebounceTimer) return; // already scheduled
   S.markdownDebounceTimer = setTimeout(() => {
     S.markdownDebounceTimer = null;
     if (S.currentAgentEl && S.currentAgentText) {
       renderMarkdown(S.currentAgentEl, S.currentAgentText);
-      S.currentAgentEl.scrollIntoView({ block: 'end' });
+      autoScroll();
     }
-  }, 400);
+  }, 200);
 }
 
 function flushPending(): void {
@@ -99,9 +117,10 @@ function flushPending(): void {
     S.currentAgentEl = appendDiv(messagesEl, 'msg agent');
   }
   S.currentAgentText += S.pendingText;
-  S.currentAgentEl.textContent = S.currentAgentText;
   S.pendingText = ''; S.flushScheduled = false;
-  S.currentAgentEl.scrollIntoView({ block: 'end' });
+  // Render markdown directly — no intermediate .textContent flash.
+  // scheduleMarkdownRender coalesces at 100ms so rapid chunks don't
+  // each trigger a full marked.parse() + innerHTML replacement.
   scheduleMarkdownRender();
 }
 
@@ -109,10 +128,28 @@ function scheduleFlush(): void {
   if (!S.flushScheduled) { S.flushScheduled = true; setTimeout(flushPending, 0); }
 }
 
+// ── Slash command detection ─────────────────────────
+// Hardcoded allowlist mirroring the ACP adapter's _SLASH_COMMANDS dict.
+// Keep in sync with ~/.hermes/hermes-agent/acp_adapter/server.py. Commands
+// not in this set are treated as prose and go to the LLM normally (so the
+// user bubble renders). Matched commands hide the user bubble and the
+// response renders as a centered system-style bubble instead of an agent bubble.
+const KNOWN_SLASH_COMMANDS = new Set([
+  'help', 'model', 'tools', 'context', 'reset', 'compact', 'version',
+  'title', 'yolo', 'new', 'retry', 'status', 'usage', 'compress',
+  'reasoning', 'save',
+]);
+function isSlashCommand(text: string): boolean {
+  if (!text.startsWith('/')) return false;
+  const first = text.slice(1).split(/\s/, 1)[0].toLowerCase();
+  return KNOWN_SLASH_COMMANDS.has(first);
+}
+
 // ── Send ─────────────────────────────────────────────
 function send(): void {
   const text = inputEl.value.trim();
   if (!text) return;
+  const isSlash = isSlashCommand(text);
   inputEl.value = '';
   inputEl.style.height = '';
   attachChip.style.display = 'none'; attachChip.innerHTML = '';
@@ -120,9 +157,12 @@ function send(): void {
   skillsBtn.classList.remove('has-skills'); skillsBtn.textContent = '✦';
   if (emptyState) emptyState.style.display = 'none';
   if (!S.isBusy) {
-    appendMessage(messagesEl, 'user', text);
+    // Slash commands don't reach the LLM — don't render a user bubble.
+    // The response from the adapter will be styled as a system bubble on 'done'.
+    if (!isSlash) appendMessage(messagesEl, 'user', text);
     S.currentAgentEl = null; S.currentAgentText = ''; S.thinkingStatusEl = null; S.pendingText = '';
-    showWaiting(messagesEl);
+    S.pendingSlashResponse = isSlash;
+    if (!isSlash) showWaiting(messagesEl);
   } else {
     S.pendingQueuedTexts.push(text);
   }
@@ -158,25 +198,61 @@ modelBtnHeader.addEventListener('click', (e) => {
   e.stopPropagation(); const open = modelMenu.style.display !== 'none';
   closeFn(); if (!open) modelMenu.style.display = 'block';
 });
-modelBtn.addEventListener('click', (e) => {
-  e.stopPropagation(); const open = modelMenu.style.display !== 'none';
-  closeFn(); if (!open) modelMenu.style.display = 'block';
-});
 modelMenu.addEventListener('click', (e) => {
   const opt = (e.target as HTMLElement).closest<HTMLElement>('.model-option');
   if (!opt?.dataset.command) return;
   closeFn(); vscode.postMessage({ type: 'switchModel', model: opt.dataset.command });
 });
 
-// Overflow menu
+// Slash-command menu (hybrid dispatch: execute / confirm / prompt-for-arg)
+function hideCmdArg(): void {
+  cmdArgPopover.style.display = 'none';
+  cmdArgInput.value = '';
+  cmdArgInput.onkeydown = null;
+}
+
+function promptForArg(cmd: string, label: string): void {
+  cmdArgLabel.textContent = label;
+  cmdArgInput.value = '';
+  cmdArgPopover.style.display = 'block';
+  setTimeout(() => cmdArgInput.focus(), 0);
+  cmdArgInput.onkeydown = (ev) => {
+    if (ev.key === 'Enter') {
+      ev.preventDefault();
+      const arg = cmdArgInput.value.trim();
+      hideCmdArg();
+      if (arg) vscode.postMessage({ type: 'send', text: `${cmd} ${arg}` });
+    } else if (ev.key === 'Escape') {
+      ev.preventDefault();
+      hideCmdArg();
+    }
+  };
+}
+
 overflowBtn.addEventListener('click', (e) => {
-  e.stopPropagation(); const open = overflowMenu.style.display !== 'none';
-  closeFn(); if (!open) overflowMenu.style.display = 'block';
+  e.stopPropagation();
+  const open = overflowMenu.style.display !== 'none';
+  closeFn(); hideCmdArg();
+  if (!open) overflowMenu.style.display = 'block';
 });
+
 overflowMenu.addEventListener('click', (e) => {
   const item = (e.target as HTMLElement).closest<HTMLElement>('.menu-item[data-cmd]');
   if (!item?.dataset.cmd) return;
-  closeFn(); vscode.postMessage({ type: 'send', text: item.dataset.cmd });
+  e.stopPropagation();
+  const cmd  = item.dataset.cmd;
+  const mode = item.dataset.mode ?? 'execute';
+  closeFn();
+
+  if (mode === 'execute') {
+    vscode.postMessage({ type: 'send', text: cmd });
+  } else if (mode === 'confirm') {
+    const msg = item.dataset.confirm ?? `Run ${cmd}?`;
+    // eslint-disable-next-line no-alert
+    if (confirm(msg)) vscode.postMessage({ type: 'send', text: cmd });
+  } else if (mode === 'prompt') {
+    promptForArg(cmd, item.dataset.argLabel ?? 'Argument');
+  }
 });
 
 // Empty state prompt chips — send immediately on click
@@ -330,7 +406,7 @@ window.addEventListener('message', (e: MessageEvent) => {
       const { label, info } = formatToolDisplay(msg.toolName ?? '', msg.toolKind, msg.toolLocations, msg.toolDetail);
       const infoHtml = info ? `<span class="tool-detail">${DOMPurify.sanitize(info)}</span>` : '';
       toolEl.innerHTML = `<span class="tool-status${statusClass}">${statusIcon}</span><span class="tool-name">${label}</span>${infoHtml}`;
-      toolEl.scrollIntoView({ block: 'end' });
+      autoScroll();
       break;
     }
 
@@ -352,11 +428,29 @@ window.addEventListener('message', (e: MessageEvent) => {
       document.getElementById('waiting')?.remove();
       document.getElementById('turn-thinking')?.remove();
       if (S.currentAgentEl && S.currentAgentText) {
-        detectTodoUpdate(S.currentAgentText, todoOverlay);
+        // If this turn was a slash command, restyle the bubble as a centered
+        // "system" message instead of a normal agent reply. The content is
+        // canned adapter output, not an LLM response — the visual treatment
+        // should reflect that.
+        if (S.pendingSlashResponse) {
+          S.currentAgentEl.classList.remove('agent');
+          S.currentAgentEl.classList.add('system');
+        } else {
+          detectTodoUpdate(S.currentAgentText, todoOverlay);
+        }
         renderMarkdown(S.currentAgentEl, S.currentAgentText);
-        S.currentAgentEl.scrollIntoView({ block: 'end' });
+        autoScroll();
+      }
+      // YOLO state feedback — parse the adapter's /yolo response ("⚡ YOLO mode: ON — ..."
+      // or "⚠ YOLO mode: OFF — ...") and toggle the red composer glow. Ground-truth
+      // driven: the glow reflects the real HERMES_YOLO_MODE env var inside the
+      // adapter subprocess, not an optimistic client guess.
+      {
+        const m = /YOLO mode:\s*(ON|OFF)/i.exec(S.currentAgentText);
+        if (m) composer.classList.toggle('yolo', m[1].toUpperCase() === 'ON');
       }
       S.currentAgentEl = null; S.currentAgentText = ''; S.thinkingStatusEl = null;
+      S.pendingSlashResponse = false;
       inputEl.focus();
       break;
 

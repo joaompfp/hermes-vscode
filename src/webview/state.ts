@@ -17,6 +17,10 @@ export interface WebviewState {
   flushScheduled: boolean;
   markdownDebounceTimer: ReturnType<typeof setTimeout> | null;
 
+  /** True when the next agent 'done' is the response to a slash command —
+   *  the response bubble should be styled as a system message, not an agent turn. */
+  pendingSlashResponse: boolean;
+
   // Queue
   pendingQueuedTexts: string[];
   prevQueueCount: number;
@@ -38,6 +42,7 @@ export function createInitialState(): WebviewState {
     pendingText: '',
     flushScheduled: false,
     markdownDebounceTimer: null,
+    pendingSlashResponse: false,
     pendingQueuedTexts: [],
     prevQueueCount: 0,
     selectedSkillNames: new Set(),

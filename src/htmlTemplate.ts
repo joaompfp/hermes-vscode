@@ -107,7 +107,6 @@ ${CSS_TEMPLATE}
       ${modelMenuHtml}
     </div>
   </div>
-  <div id="todo-overlay"></div>
   <div id="messages">
     <div id="empty-state">
       <div class="empty-logo">☤</div>
@@ -120,12 +119,54 @@ ${CSS_TEMPLATE}
       </div>
     </div>
   </div>
+  <div id="todo-overlay"></div>
   <div id="input-drag"></div>
+  <div id="composer">
   <div id="context-row">
     <div id="attach-chip"></div>
   </div>
   <div id="input-row">
     <textarea id="input" rows="2" placeholder="Message Hermes…"></textarea>
+  </div>
+  <div id="queue-status"></div>
+  <div id="bottom-bar">
+    <button class="cmd-btn" id="attach-btn" title="Attach file"><span class="btn-icon">⊕</span></button>
+    <div class="btn-wrap">
+      <button class="cmd-btn" id="skills-btn" title="Skills"><span class="btn-icon">✦</span></button>
+      <div id="skills-menu" style="display:none"></div>
+    </div>
+    <div class="btn-wrap">
+      <button class="cmd-btn" id="overflow-btn" title="Slash commands"><span class="btn-icon">/</span></button>
+      <div id="overflow-menu" style="display:none">
+      <div class="menu-group-label">Session</div>
+      <div class="menu-item" data-cmd="/title" data-mode="prompt" data-arg-label="Session title"><span class="cmd-name">/title</span> Rename session…</div>
+      <div class="menu-item" data-cmd="/new" data-mode="execute"><span class="cmd-name">/new</span> Fresh session</div>
+      <div class="menu-item" data-cmd="/retry" data-mode="execute"><span class="cmd-name">/retry</span> Retry last message</div>
+      <div class="menu-item" data-cmd="/compact" data-mode="execute"><span class="cmd-name">/compact</span> Compress context</div>
+      <div class="menu-item" data-cmd="/save" data-mode="prompt" data-arg-label="Filename (optional)"><span class="cmd-name">/save</span> Save conversation…</div>
+
+      <div class="menu-group-label">Info</div>
+      <div class="menu-item" data-cmd="/context" data-mode="execute"><span class="cmd-name">/context</span> Context info</div>
+      <div class="menu-item" data-cmd="/usage" data-mode="execute"><span class="cmd-name">/usage</span> Token usage</div>
+      <div class="menu-item" data-cmd="/tools" data-mode="execute"><span class="cmd-name">/tools</span> List tools</div>
+      <div class="menu-item" data-cmd="/help" data-mode="execute"><span class="cmd-name">/help</span> All commands</div>
+
+      <div class="menu-group-label">Configuration</div>
+      <div class="menu-item" data-cmd="/yolo" data-mode="execute"><span class="cmd-name">/yolo</span> Toggle YOLO mode</div>
+      <div class="menu-item" data-cmd="/reasoning" data-mode="prompt" data-arg-label="Reasoning level (none|low|medium|high|xhigh)"><span class="cmd-name">/reasoning</span> Set effort…</div>
+
+      <div class="menu-group-label danger-label">Danger</div>
+      <div class="menu-item danger" data-cmd="/reset" data-mode="confirm" data-confirm="Clear the entire conversation history? This cannot be undone."><span class="cmd-name">/reset</span> Reset conversation</div>
+      </div>
+      <div id="cmd-arg-popover" style="display:none">
+        <div class="cmd-arg-label" id="cmd-arg-label">Argument</div>
+        <input type="text" id="cmd-arg-input" autocomplete="off" spellcheck="false"/>
+        <div class="cmd-arg-hint">Enter to confirm · Esc to cancel</div>
+      </div>
+    </div>
+    <div class="bar-spacer"></div>
+    <div id="logo-mark"><img src="${logoUri}" alt="Hermes"/></div>
+    <div class="bar-spacer"></div>
     <div id="input-btns">
       <div id="action-area">
         <button id="send-btn">Send</button>
@@ -134,25 +175,8 @@ ${CSS_TEMPLATE}
           <button id="queue-btn">▶</button>
         </div>
       </div>
-      <div id="logo-mark"><img src="${logoUri}" alt="Hermes"/></div>
     </div>
   </div>
-  <div id="queue-status"></div>
-  <div id="bottom-bar">
-    <button class="cmd-btn" id="attach-btn" title="Attach file"><span class="btn-icon">⊕</span></button>
-    <button class="cmd-btn" id="skills-btn" title="Skills"><span class="btn-icon">✦</span></button>
-    <div style="flex:1"></div>
-    <button class="cmd-btn" id="overflow-btn" title="More actions"><span class="btn-icon">···</span></button>
-    <div id="overflow-menu" style="display:none">
-      <div class="menu-item" data-cmd="/context">≡ Context info</div>
-      <div class="menu-item" data-cmd="/compact">⤓ Compress context</div>
-      <div class="menu-item" data-cmd="/reset">↺ Reset conversation</div>
-      <div class="menu-item" data-cmd="/help">? Help</div>
-    </div>
-    <div id="model-switcher" style="display:none">
-      <button id="model-btn" title="Switch model">${escapeHtml(config.initialModel)} ▾</button>
-    </div>
-    <div id="skills-menu" style="display:none"></div>
   </div>
   <script nonce="${nonce}" src="${scriptUri}"></script>
 </body>
@@ -199,6 +223,7 @@ const CSS_TEMPLATE = /* css */ `
       font-family: var(--ui-font);
       flex-shrink: 0;
       position: relative;
+      z-index: 10;
     }
 
     /* Row 1: brand + model */
@@ -365,6 +390,34 @@ const CSS_TEMPLATE = /* css */ `
       background: transparent;
       white-space: pre-wrap;
       padding-left: 2px;
+      /* Smooth height transitions as new paragraphs stream in */
+      transition: height 0.15s ease-out;
+    }
+    .msg.agent p, .msg.agent li, .msg.agent pre, .msg.agent blockquote {
+      animation: content-fade 0.2s ease-out;
+    }
+    @keyframes content-fade {
+      from { opacity: 0.6; }
+      to   { opacity: 1; }
+    }
+    /* System messages — slash command responses. Centered, muted, distinct
+       from both user and agent bubbles. They're controls, not conversation. */
+    .msg.system {
+      align-self: center;
+      max-width: 92%;
+      background: var(--vscode-textBlockQuote-background, rgba(128,128,128,0.08));
+      border: 1px solid var(--vscode-input-border, rgba(128,128,128,0.25));
+      border-radius: 6px;
+      padding: 8px 12px;
+      font-family: var(--ui-font);
+      font-size: 0.85em;
+      color: var(--vscode-descriptionForeground);
+      white-space: pre-wrap;
+      margin: var(--space-sm) auto;
+      text-align: left;
+    }
+    .msg.system code, .msg.system pre {
+      font-size: 0.9em;
     }
     .msg.tool {
       font-family: var(--vscode-editor-font-family, monospace);
@@ -431,12 +484,16 @@ const CSS_TEMPLATE = /* css */ `
     }
 
     /* ── Todo overlay ──────────────────────────────── */
+    /* Rendered as a card anchored directly above the composer. Matches the
+       composer's horizontal margins so the two read as one stacked unit. */
     #todo-overlay {
       font-family: var(--ui-font); font-size: 0.82em;
-      padding: 6px 10px;
-      border-bottom: 1px solid var(--vscode-sideBarSectionHeader-border);
+      margin: 0 8px 4px; padding: 6px 10px;
       background: var(--vscode-sideBarSectionHeader-background, rgba(128,128,128,0.05));
+      border: 1px solid var(--vscode-input-border, rgba(128,128,128,0.3));
+      border-radius: 8px;
       flex-shrink: 0; display: none;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
     }
     #todo-overlay .todo-header {
       font-weight: 700; font-size: 0.78em;
@@ -577,48 +634,69 @@ const CSS_TEMPLATE = /* css */ `
     }
     #attach-chip .chip-x:hover { opacity: 1; }
 
-    /* ── Input area (full width) ───────────────────── */
-    #input-row { display: flex; align-items: stretch; gap: 5px; padding: 4px 8px 6px; }
+    /* ── Composer (textarea + toolbar wrapped in one glowing pill) ── */
+    #composer {
+      margin: 4px 8px 8px;
+      background: var(--vscode-input-background);
+      border: 1px solid var(--vscode-input-border, rgba(128,128,128,0.3));
+      border-radius: 8px;
+      overflow: visible;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+    }
+    #composer:focus-within { border-color: var(--gold); }
+
+    /* Idle glow — subtle ambient gold tint when focused or hovered */
+    @keyframes composer-glow-gold {
+      0%, 100% { border-color: rgba(245, 197, 66, 0.45); box-shadow: 0 0 4px rgba(245,197,66,0.15); }
+      50%       { border-color: rgba(245, 197, 66, 0.85); box-shadow: 0 0 14px rgba(245,197,66,0.35); }
+    }
+    @keyframes composer-glow-red {
+      0%, 100% { border-color: rgba(244, 135, 113, 0.45); box-shadow: 0 0 4px rgba(244,135,113,0.15); }
+      50%       { border-color: rgba(244, 135, 113, 0.90); box-shadow: 0 0 14px rgba(244,135,113,0.40); }
+    }
+    /* Busy glow — applied while the agent is working */
+    #composer.busy-glow { animation: composer-glow-gold 1.6s ease-in-out infinite; }
+    /* YOLO mode — persistent red glow (future /yolo slash command) */
+    #composer.yolo { border-color: rgba(244, 135, 113, 0.7); }
+    #composer.yolo.busy-glow { animation: composer-glow-red 1.6s ease-in-out infinite; }
+
+    #input-row { display: flex; align-items: stretch; padding: 6px 8px 2px; }
     #input {
       flex: 1;
-      background: var(--vscode-input-background);
+      background: transparent;
       color: var(--vscode-input-foreground);
-      border: 1px solid var(--vscode-input-border, rgba(128,128,128,0.3));
-      border-radius: 4px; padding: 6px 8px;
+      border: none; padding: 2px 2px;
       font-family: inherit; font-size: inherit;
       resize: none; min-height: 0; height: 100%; overflow-y: auto;
     }
-    #input:focus { outline: none; border-color: var(--gold); }
-    @keyframes input-glow {
-      0%, 100% { border-color: rgba(245, 197, 66, 0.35); box-shadow: 0 0 3px rgba(245,197,66,0.1); }
-      50%       { border-color: rgba(245, 197, 66, 0.65); box-shadow: 0 0 8px rgba(245,197,66,0.25); }
-    }
-    #input.busy-glow { animation: input-glow 1.6s ease-in-out infinite; }
+    #input:focus { outline: none; }
 
-    #input-btns {
-      display: flex; flex-direction: column; align-items: stretch;
-      gap: 5px; flex-shrink: 0; width: 56px; align-self: stretch;
-    }
-    #action-area { width: 100%; }
+    /* Send / Stop / Queue group (lives in #bottom-bar now) */
+    #input-btns { display: flex; align-items: center; flex-shrink: 0; }
+    #action-area { display: flex; align-items: center; }
     #input-btns button {
       font-family: var(--ui-font); font-size: 0.78em; font-weight: 600;
       letter-spacing: 0.02em; border: none; border-radius: 4px;
-      cursor: pointer; padding: 5px 4px; width: 100%;
+      cursor: pointer; padding: 4px 12px; height: var(--toolbar-height);
     }
-    #send-btn { background: var(--gold); color: #1e1e1e; }
+    #send-btn { background: var(--gold); color: #1e1e1e; min-width: 56px; }
     #send-btn:hover { background: #E8C940; }
-    #busy-btns { display: none; gap: 2px; width: 100%; }
-    #stop-btn { flex: 1; background: var(--vscode-errorForeground, #C94040); color: #FFF; font-size: 1em; padding: 4px 2px; }
+    #busy-btns { display: none; gap: 2px; }
+    #busy-btns button { min-width: 32px; font-size: 1em; padding: 4px 8px; }
+    #stop-btn { background: var(--vscode-errorForeground, #C94040); color: #FFF; }
     #stop-btn:hover { opacity: 0.85; }
-    #queue-btn { flex: 1; background: var(--gold); color: #1e1e1e; font-size: 1em; padding: 4px 2px; }
+    #queue-btn { background: var(--gold); color: #1e1e1e; }
     #queue-btn:hover { opacity: 0.85; }
 
-    /* Logo */
+    /* Logo (centered in bottom bar) */
     #logo-mark {
       display: flex; align-items: center; justify-content: center;
-      height: 100%; min-height: 44px; opacity: 0.80;
+      flex-shrink: 0; opacity: 0.80;
     }
-    #logo-mark img { width: 40px; height: 40px; object-fit: contain; transition: filter 0.4s ease; }
+    #logo-mark img { width: 28px; height: 28px; object-fit: contain; transition: filter 0.4s ease; }
+
+    /* Flex spacers used to center the logo between left buttons and Send */
+    .bar-spacer { flex: 1; min-width: 0; }
     @keyframes hermes-glow {
       0%, 100% { filter: drop-shadow(0 0 3px rgba(245, 197, 66, 0.25)); }
       50%       { filter: drop-shadow(0 0 10px rgba(245, 197, 66, 0.85)); }
@@ -630,25 +708,16 @@ const CSS_TEMPLATE = /* css */ `
       color: var(--gold); opacity: 0.8; padding: 0 8px 2px; display: none;
     }
 
-    /* ── Bottom toolbar ─────────────────────────────── */
+    /* ── Bottom toolbar (inside composer, no top border) ── */
     #bottom-bar {
       display: flex; align-items: center; gap: 4px;
-      padding: 4px 8px 5px;
-      border-top: 1px solid var(--vscode-sideBarSectionHeader-border);
-      flex-shrink: 0; font-family: var(--ui-font); position: relative;
+      padding: 4px 6px 5px;
+      flex-shrink: 0; font-family: var(--ui-font);
     }
-    #model-switcher { position: relative; flex: 1; min-width: 0; }
-    #model-btn {
-      width: 100%; background: transparent;
-      border: 1px solid var(--vscode-input-border, rgba(128,128,128,0.3));
-      border-radius: 4px;
-      color: var(--vscode-descriptionForeground);
-      font-family: var(--ui-font);
-      font-size: 0.85em; font-weight: 500; padding: 0 8px;
-      cursor: pointer; text-align: left; white-space: nowrap;
-      overflow: hidden; text-overflow: ellipsis; height: var(--toolbar-height);
-    }
-    #model-btn:hover { color: var(--gold); border-color: var(--gold-border); }
+    /* Per-button wrapper so dropdowns anchor to their trigger button, not the
+       whole bottom bar. Each .btn-wrap is position: relative, so its children
+       with position: absolute compute offsets relative to the button. */
+    #bottom-bar .btn-wrap { position: relative; display: flex; }
     #model-menu {
       position: absolute; top: 100%; left: 0; right: 0;
       background: var(--vscode-dropdown-background, var(--vscode-sideBar-background));
@@ -686,22 +755,75 @@ const CSS_TEMPLATE = /* css */ `
     .cmd-btn .btn-icon { font-size: 1.3em; }
     #skills-btn.has-skills { color: var(--gold); border-color: var(--gold-border); }
 
-    /* Overflow menu */
+    /* Overflow menu — anchored to its .btn-wrap parent (next to the / button) */
     #overflow-menu {
-      position: absolute; bottom: calc(100% + 4px); right: 0;
+      position: absolute; bottom: calc(100% + 4px); left: 0;
       background: var(--vscode-dropdown-background, var(--vscode-sideBar-background));
       border: 1px solid var(--vscode-dropdown-border, var(--vscode-sideBarSectionHeader-border));
-      border-radius: 4px; min-width: 180px; z-index: 100; overflow: hidden;
+      border-radius: 4px; min-width: 260px; z-index: 100; overflow: hidden;
+      padding: 4px 0;
+    }
+    #overflow-menu .menu-group-label {
+      padding: 6px 10px 2px; font-size: 0.66em; font-family: var(--ui-font);
+      color: var(--gold); opacity: 0.8;
+      text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600;
+    }
+    #overflow-menu .menu-group-label.danger-label { color: var(--vscode-errorForeground, #f48771); }
+    #overflow-menu .menu-group-label:not(:first-child) {
+      margin-top: 4px;
+      border-top: 1px solid var(--vscode-dropdown-border, var(--vscode-sideBarSectionHeader-border));
+      padding-top: 6px;
     }
     #overflow-menu .menu-item {
-      padding: 6px 10px; font-size: 0.85em; font-family: var(--ui-font);
+      padding: 5px 12px; font-size: 0.85em; font-family: var(--ui-font);
       color: var(--vscode-foreground); cursor: pointer;
     }
+    #overflow-menu .menu-item .cmd-name {
+      display: inline-block; min-width: 72px;
+      font-family: var(--vscode-editor-font-family, monospace);
+      font-size: 0.92em; color: var(--gold); opacity: 0.9;
+    }
     #overflow-menu .menu-item:hover { background: var(--gold-subtle); }
+    #overflow-menu .menu-item.danger { color: var(--vscode-errorForeground, #f48771); }
+    #overflow-menu .menu-item.danger:hover { background: rgba(244, 135, 113, 0.12); }
+    #overflow-menu .menu-sep {
+      height: 1px; margin: 4px 0;
+      background: var(--vscode-dropdown-border, var(--vscode-sideBarSectionHeader-border));
+      opacity: 0.5;
+    }
 
-    /* Skills picker */
+    /* Inline arg popover for commands that take an argument (/title …) */
+    /* Sibling of #overflow-menu inside the slash button's .btn-wrap */
+    #cmd-arg-popover {
+      position: absolute; bottom: calc(100% + 4px); left: 0;
+      background: var(--vscode-dropdown-background, var(--vscode-sideBar-background));
+      border: 1px solid var(--gold-border, var(--vscode-dropdown-border));
+      border-radius: 4px; min-width: 260px; z-index: 110;
+      padding: 8px 10px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+    #cmd-arg-popover .cmd-arg-label {
+      font-size: 0.7em; font-family: var(--ui-font);
+      color: var(--gold); text-transform: uppercase;
+      letter-spacing: 0.05em; margin-bottom: 4px;
+    }
+    #cmd-arg-popover input {
+      width: 100%; box-sizing: border-box;
+      background: var(--vscode-input-background);
+      color: var(--vscode-input-foreground);
+      border: 1px solid var(--vscode-input-border, transparent);
+      border-radius: 3px; padding: 4px 6px;
+      font-family: var(--ui-font); font-size: 0.9em;
+    }
+    #cmd-arg-popover input:focus { outline: 1px solid var(--gold); outline-offset: -1px; }
+    #cmd-arg-popover .cmd-arg-hint {
+      font-size: 0.7em; opacity: 0.5;
+      margin-top: 4px; font-family: var(--ui-font);
+    }
+
+    /* Skills picker — anchored to its .btn-wrap parent (next to the ✦ button) */
     #skills-menu {
-      position: absolute; bottom: calc(100% + 4px); right: 0;
+      position: absolute; bottom: calc(100% + 4px); left: 0;
       background: var(--vscode-dropdown-background, var(--vscode-sideBar-background));
       border: 1px solid var(--vscode-dropdown-border, var(--vscode-sideBarSectionHeader-border));
       border-radius: 4px; min-width: 240px; max-width: 320px;

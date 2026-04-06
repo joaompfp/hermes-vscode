@@ -1,21 +1,28 @@
 {
   "name": "hermes-ai-agent",
   "displayName": "Hermes AI Agent",
-  "description": "AI agent sidebar for VS Code. Streams chat, runs tools, manages sessions, and tracks context via ACP.",
-  "version": "3.0.0-rc.3",
+  "description": "VS Code sidebar for the Hermes AI agent. Streams chat, runs tools, manages sessions. Multi-model (Claude, Codex). Communicates over ACP.",
+  "version": "3.0.0",
   "publisher": "joaompfp",
   "author": "joao",
   "license": "MIT",
   "keywords": [
-    "ai",
-    "agent",
-    "hermes",
-    "chat",
-    "acp",
-    "tool use",
-    "sidebar",
+    "ai agent",
+    "coding assistant",
+    "autonomous agent",
+    "claude",
+    "codex",
+    "copilot alternative",
+    "pair programmer",
     "llm",
-    "streaming"
+    "tool use",
+    "chat",
+    "hermes",
+    "acp",
+    "agent client protocol",
+    "sidebar chat",
+    "streaming",
+    "remote ssh"
   ],
   "homepage": "https://github.com/joaompfp/hermes-vscode",
   "bugs": {
@@ -39,14 +46,10 @@
   "categories": [
     "AI",
     "Chat",
-    "Programming Languages",
+    "Machine Learning",
     "Other"
   ],
-  "activationEvents": [
-    "onView:hermes.chatView",
-    "onCommand:hermes.openChat",
-    "onCommand:hermes.newSession"
-  ],
+  "activationEvents": [],
   "main": "./dist/extension.js",
   "qna": "https://github.com/joaompfp/hermes-vscode/issues",
   "contributes": {

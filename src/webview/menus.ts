@@ -14,11 +14,13 @@ type Vscode = { postMessage(msg: FromWebview): void };
 export function closeAllDropdowns(els: {
   modelMenu: HTMLElement; sessionPicker: HTMLElement;
   skillsMenu: HTMLElement; overflowMenu: HTMLElement;
+  cmdArgPopover?: HTMLElement;
 }): void {
   els.modelMenu.style.display = 'none';
   els.sessionPicker.style.display = 'none';
   els.skillsMenu.style.display = 'none';
   els.overflowMenu.style.display = 'none';
+  if (els.cmdArgPopover) els.cmdArgPopover.style.display = 'none';
 }
 
 // ── Session picker ───────────────────────────────────
@@ -116,12 +118,34 @@ export function setupSkillsHandlers(
   });
 }
 
+// ── Token display formatting ─────────────────────────
+//
+// TODO(joao): choose the display hierarchy. See the block in updateStatusBar()
+// for options A/B/C/D and rationale. This function returns the HTML for the
+// context counter text (the "X / Y" label next to the progress bar).
+//
+// Signature constraints:
+// - MUST return a string of HTML (it's assigned to .innerHTML)
+// - Use `fmtTok(n)` to format numbers (210180 → "210.2k")
+// - Use `<span style="color:var(--gold);font-weight:600">...</span>` for the headline number
+// - Use `<span style="opacity:0.5">...</span>` for secondary/dimmed text
+// - `total`, `cached`, `fresh`, `size` are all plain numbers
+function renderTokenDisplay(
+  total: number,
+  cached: number,
+  fresh: number,
+  size: number,
+): string {
+  void fresh; void cached; // unused — we only show total vs window size
+  return `<span style="color:var(--gold);font-weight:600">${fmtTok(total)}</span> / ${fmtTok(size)}`;
+}
+
 // ── Status bar updates ───────────────────────────────
 
 export function updateStatusBar(
   state: WebviewState,
   els: {
-    statusVersionEl: HTMLElement; modelBtn: HTMLElement; modelBtnHeader: HTMLElement;
+    statusVersionEl: HTMLElement; modelBtnHeader: HTMLElement;
     modelMenu: HTMLElement; statusSessionEl: HTMLElement; statusContextEl: HTMLElement;
     ctxBarWrap: HTMLElement; ctxBar: HTMLElement; ctxBarFresh: HTMLElement;
   },
@@ -143,8 +167,12 @@ export function updateStatusBar(
         displayLabel = clone.textContent?.trim() || model;
       }
     });
-    els.modelBtn.textContent = `${displayLabel} ▾`;
     els.modelBtnHeader.textContent = `${displayLabel} ▾`;
+    // Model changed — reset cached context size so the old model's window
+    // doesn't persist until the first response from the new model arrives.
+    state.knownContextSize = 0;
+    els.statusContextEl.textContent = '';
+    els.ctxBarWrap.style.display = 'none';
   }
   if (sessionTitle) els.statusSessionEl.textContent = sessionTitle;
   if (contextSize && contextSize > 0) state.knownContextSize = contextSize;
@@ -156,12 +184,35 @@ export function updateStatusBar(
       const freshPct = Math.min(1, freshTokens / size);
       const cls = totalPct > 0.9 ? 'crit' : totalPct > 0.7 ? 'warn' : '';
 
-      // Text: prominently show fresh, total in parens when there's cached content
-      const cachedLabel = cachedTokens && cachedTokens > 0
-        ? ` <span style="opacity:0.5">(+${fmtTok(cachedTokens)})</span>`
-        : '';
-      els.statusContextEl.innerHTML =
-        `<span style="color:var(--gold);font-weight:600">${fmtTok(freshTokens)}</span>${cachedLabel} / ${fmtTok(size)}`;
+      // TOKEN DISPLAY — TODO(joao): pick the right hierarchy. See below.
+      //
+      // Context: Hermes sends inputTokens = TOTAL (fresh + cache_read + cache_write)
+      // and cachedReadTokens = cache_read portion. On continuation turns with a hot
+      // cache, the ENTIRE prompt can be served from cache, so fresh = 0 legitimately.
+      //
+      // The current "0 (+210.2k) / 1M" display is technically correct but confusing:
+      // users read it as "counter broke". The question is which number deserves the
+      // headline slot.
+      //
+      // Option A — Total headline, cached aside:  "210.2k (cached) / 1M"
+      //   Matches context-budget mental model. "How full is my window?" = headline.
+      //   Cost signal (cached) moved to secondary position.
+      //
+      // Option B — Fresh headline, total aside:   "0 · 210.2k total / 1M"
+      //   Current approach. Emphasises billable tokens. Breaks when fresh = 0.
+      //
+      // Option C — Smart switch:  show fresh headline when > threshold (say 1k),
+      //   otherwise flip to total headline with "all cached" annotation.
+      //   E.g. "✓ 210.2k cached / 1M" when fresh is 0.
+      //
+      // Option D — Your call: hybrid or something else entirely.
+      //
+      // Implement below. `contextUsed` is total-including-cache, `cachedTokens` is
+      // the cache_read portion (may be 0 or undefined), `freshTokens` is the diff,
+      // `size` is the context window, `fmtTok()` formats numbers like "210.2k".
+      els.statusContextEl.innerHTML = renderTokenDisplay(
+        contextUsed, cachedTokens ?? 0, freshTokens, size,
+      );
       els.statusContextEl.className = cls;
 
       // Dual bar: faded background = total, solid foreground = fresh
