@@ -88,10 +88,11 @@ export function buildSkillsMenu(container: HTMLElement, state: WebviewState): vo
   container.innerHTML = state.skillGroupsData.map(g => {
     const items = g.skills.map(s => {
       const sel = state.selectedSkillNames.has(s.name) ? ' selected' : '';
-      const desc = s.description ? `<span class="skill-desc">${s.description}</span>` : '';
-      return `<div class="skill-option${sel}" data-skill="${s.name}">${s.name} ${desc}</div>`;
+      const desc = s.description ? `<span class="skill-desc">${DOMPurify.sanitize(s.description)}</span>` : '';
+      const safeName = DOMPurify.sanitize(s.name);
+      return `<div class="skill-option${sel}" data-skill="${safeName}">${safeName} ${desc}</div>`;
     }).join('');
-    return `<div class="skill-group-label">${g.category}</div>${items}`;
+    return `<div class="skill-group-label">${DOMPurify.sanitize(g.category)}</div>${items}`;
   }).join('');
 }
 

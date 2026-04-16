@@ -508,7 +508,7 @@ window.addEventListener('message', (e: MessageEvent) => {
       if (msg.attachedFiles !== undefined) {
         if (msg.attachedFiles && msg.attachedFiles.length > 0) {
           attachChip.innerHTML = msg.attachedFiles.map((f: {name: string}) =>
-            `⊕ <span class="chip-name">${f.name}</span>`
+            `⊕ <span class="chip-name">${DOMPurify.sanitize(f.name)}</span>`
           ).join(' ') + ' <span class="chip-x">✕</span>';
           attachChip.style.display = 'flex';
         } else {
